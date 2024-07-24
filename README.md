@@ -1,5 +1,6 @@
-# Run docker compose up -d
-# Run docker exec quasidvach php artisan migrate
+# After cloning the repo run the following:
+# docker compose up -d
+# docker exec quasidvach php artisan migrate
 
 GET /topics возвращает все топики
 
