@@ -2,53 +2,43 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\StoreTopicRequest;
+use App\Http\Requests\UpdateTopicRequest;
+use App\Http\Resources\TopicResource;
 use App\Models\Topic;
-use Illuminate\Http\Request;
-use \Illuminate\Validation\Rule;
+use Illuminate\Http\Resources\Json\JsonResource;
 
 class TopicController extends Controller
 {
-    public function index()
+    public function index(): JsonResource
     {
-        $topics = Topic::all();
-        return response()->json($topics, 200);
+        return TopicResource::collection(Topic::all()->loadCount("threads"));
     }
 
-    public function show(Topic $topic)
+    public function show(Topic $topic): JsonResource
     {
-        return response()->json($topic, 200);
+        return new TopicResource($topic->loadCount('threads')->load('threads'));
     }
 
-    public function show_threads(Topic $topic)
+    public function store(StoreTopicRequest $request): JsonResource
     {
-        return response()->json($topic->threads, 200);
+        $topic = Topic::create($request->validated());
+        return new TopicResource($topic);
     }
 
-    public function store(Request $request)
+    public function update(UpdateTopicRequest $request, Topic $topic): JsonResource
     {
-        $validatedData = $request->validate(['name' => 'required|string|unique:topics']);
-        $topic = Topic::create($validatedData);
-        return response()->json($topic, 201);
+        $topic->update($request->validated());
+        return new TopicResource($topic->loadCount('threads')->load('threads'));
     }
 
-    public function update(Request $request, Topic $topic)
-    {
-        $validatedData = $request->validate([
-            /* Rule::unique('topics')->ignore($topic->id) ignores the name of topic being renamed
-            so it's possible to assign the same name (just in case) */
-            'name' => ['required', 'string', Rule::unique('topics')->ignore($topic->id)]
-        ]);
-        $topic->update($validatedData);
-        return response()->json($topic, 202);
-    }
-
-    public function destroy(Topic $topic)
+    public function destroy(Topic $topic): JsonResource
     {
         // deletes all messages in threads related to the topic being deleted
         foreach ($topic->threads as $thread){
             /* I'm not sure why this works even with the next line commented out
             Deleting an individual thread that has replies doesn't work
-            without setting 'reply_to' to null (foreignId constaint)
+            without setting 'reply_to' to null (foreignId constraint)
             but deleting all posts in a thread works
             even with some messages replying to other ones */
 
@@ -61,6 +51,6 @@ class TopicController extends Controller
 
         $topic->threads()->delete();
         $topic->delete();
-        return response()->json(null, 204);
+        return new TopicResource($topic);
     }
 }
