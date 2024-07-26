@@ -2,64 +2,64 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\StoreMessageRequest;
+use App\Http\Requests\StorePostRequest;
+use App\Http\Requests\StoreThreadRequest;
+use App\Http\Requests\UpdatePostRequest;
+use App\Http\Resources\PostResource;
 use App\Models\Post;
 use App\Models\Topic;
-use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Validation\ValidationException;
 
 class PostController extends Controller
 {
-    public function index()
+    public function index(): JsonResource
     {
-        $posts = Post::all();
-        return response()->json($posts, 200);
+        return PostResource::collection(Post::all()->loadCount('messages')->loadCount('replies'));
     }
 
-    public function show(Post $post)
+    public function show(Post $post): JsonResource
     {
-        return response()->json($post, 200);
+        return new PostResource($post->loadCount('messages')->loadCount('replies'));
     }
 
-    public function show_messages(Post $post)
+    public function showMessages(Post $post): JsonResource
     {
         if ($post->parent_type == 'Topic'){
-            return response()->json($post->messages, 200);
+            return PostResource::collection($post->messages->loadCount('replies'));
         }
-        return response()->json("Requested post is not a thread", 400);
+        throw ValidationException::withMessages(["Requested post is not a thread"]);
     }
 
-    public function show_replies(Post $post)
+    public function showReplies(Post $post): JsonResource
     {
-        return response()->json($post->replies, 200);
+        return PostResource::collection($post->replies);
     }
 
-    public function show_reply_to(Post $post)
+    public function showReplyTo(Post $post): JsonResource
     {
-        return response()->json($post->replying_to, 200);
+        if ($post->parent_type == 'Post'){
+            return new PostResource($post->replyingTo);
+        }
+        throw ValidationException::withMessages(["Requested post is not a message"]);
+
     }
 
-    public function store_thread(Request $request, Topic $topic)
+    public function storeThread(StoreThreadRequest $request, Topic $topic): JsonResource
     {
-        $validatedData = $request->validate([
-            'body' => 'required|string',
+        $post = Post::create([
+            ...$request->validated(),
+            'reply_to' => null,
+            'parent_type' => 'Topic',
+            'parent_id' => $topic->id,
         ]);
-
-        /* A separate route is used to store threads
-        so the following fields are not to be filled
-        in incoming requests */
-        $validatedData['reply_to'] = null;
-        $validatedData['parent_type'] = 'Topic';
-        $validatedData['parent_id'] = $topic->id;
-
-        $post = Post::create($validatedData);
-        return response()->json($post, 201);
+        return new PostResource($post);
     }
 
-    public function store_message(Request $request, Post $post)
+    public function storeMessage(StoreMessageRequest $request, Post $post): JsonResource
     {
-        $validatedData = $request->validate([
-            'body' => 'required|string',
-            'reply_to' => 'numeric|nullable',
-        ]);
+        $validatedData = $request->validated();
         $validatedData['parent_type'] = 'Post';
 
         // The following code resolves correct parent_id for the message
@@ -68,7 +68,7 @@ class PostController extends Controller
         }elseif ($post->parent_type == 'Post'){
             $validatedData['parent_id'] = $post->parent_id;
         }else{
-            return response()->json("wrong parent type in post", 500);
+            throw ValidationException::withMessages(["Wrong parent type in post"]);
         }
 
         // if 'reply_to' is set there is a check that post replied to in the same thread or is the thread post itself
@@ -79,36 +79,26 @@ class PostController extends Controller
                                         Post::find($validatedData['parent_id'])->messages
                                             ->contains($validatedData['reply_to']);
             if (!$reply_in_the_same_thread){
-                return response()->json("Replies can be only in the same thread as the message replied to", 400);
+                throw ValidationException::withMessages(['reply_to' => "Replies can be only in the same thread as the message replied to"]);
             }
         }
-        $post = Post::create($validatedData);
-        return response()->json($post, 201);
+        return new PostResource(Post::create($validatedData)->load('replyingTo'));
     }
 
     # route to this is disabled in api.php
-    public function store(Request $request)
+    public function store(StorePostRequest $request): JsonResource
     {
-        $validatedData = $request->validate([
-            'body' => 'required|string',
-            'reply_to' => 'numeric|nullable',
-            'parent_id' => 'required|numeric',
-            'parent_type' => 'required|string',
-        ]);
-        $post = Post::create($validatedData);
-        return response()->json($post, 201);
+        $post = Post::create($request->validated());
+        return new PostResource($post);
     }
 
-    public function update(Request $request, Post $post)
+    public function update(UpdatePostRequest $request, Post $post): JsonResource
     {
-        $validatedData = $request->validate([
-            'body' => 'required|string',
-        ]);
-        $post->update($validatedData);
-        return response()->json($post, 202);
+        $post->update($request->validated());
+        return new PostResource($post->loadCount('messages')->loadCount('replies'));
     }
 
-    public function destroy(Post $post)
+    public function destroy(Post $post): JsonResource
     {
         /* in case there are replies 'reply_to' is set to null
         because of foreign key constraints */
@@ -118,6 +108,6 @@ class PostController extends Controller
             $post->messages()->delete();
         }
         $post->delete();
-        return response()->json(null, 200);
+        return new PostResource($post);
     }
 }

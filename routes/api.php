@@ -20,29 +20,17 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
 });
 
-Route::get('/topics', [TopicController::class, 'index']);
-Route::post('/topics', [TopicController::class, 'store']);
+Route::apiResource('topics', TopicController::class);
 
-Route::get('topics/{topic}', [TopicController::class, 'show']);
-Route::get('topics/{topic}/threads', [TopicController::class, 'show_threads']);
+Route::controller(PostController::class)->group(function () {
+    Route::get('posts/{post}/messages', 'showMessages');
+    Route::get('posts/{post}/replies', 'showReplies');
+    Route::get('posts/{post}/reply_to', 'showReplyTo');
+    Route::post('/topics/{topic}', 'storeThread');
+    Route::post('/posts/{post}', 'storeMessage');
+});
 
-Route::put('topics/{topic}', [TopicController::class, 'update']);
-Route::delete('topics/{topic}', [TopicController::class, 'destroy']);
+Route::apiResource('posts', PostController::class)->except(['store']);
 
-Route::get('/posts', [PostController::class, 'index']);
-
-# Adding posts directly is disabled to preserve the db
-# Route::post('/posts', [PostController::class, 'store']);
-
-Route::post('/topics/{topic}', [PostController::class, 'store_thread']);
-Route::post('/posts/{post}', [PostController::class, 'store_message']);
-
-Route::get('posts/{post}', [PostController::class, 'show']);
-Route::get('posts/{post}/messages', [PostController::class, 'show_messages']);
-Route::get('posts/{post}/replies', [PostController::class, 'show_replies']);
-Route::get('posts/{post}/reply_to', [PostController::class, 'show_reply_to']);
-
-Route::put('posts/{post}', [PostController::class, 'update']);
-Route::delete('posts/{post}', [PostController::class, 'destroy']);
-
-
+/*Adding posts directly is disabled to preserve the db
+Route::post('/posts', [PostController::class, 'store']);*/

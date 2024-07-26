@@ -31,9 +31,9 @@ class Post extends Model
         return $this->morphMany(self::class, 'parent');
     }
 
-    public function replying_to(): BelongsTo
+    public function replyingTo(): BelongsTo
     {
-        return $this->belongsTo(self::class, 'reply_to');
+        return $this->belongsTo(self::class, 'reply_to')->withDefault();
     }
 
     public function replies(): HasMany
