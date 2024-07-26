@@ -3,7 +3,7 @@ version: '0.1'
 services:
     quasidvach:
         container_name: quasidvach
-        image: ramzzemil/quasidvach:0.1
+        image: ramzzemil/quasidvach:0.2
         build: .
         ports:
             - "8000:8000"
